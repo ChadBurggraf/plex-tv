@@ -1,0 +1,9 @@
+This is a helper script for walking all TV Shows in an iTunes library and
+creating Plex-friendly symlinks out of them.
+
+I have no idea what I'm doing in Python, so don't expect this to work for you.
+
+Also, daemon-izing currently doesn't work at all.
+
+Licensed under the MIT license.
+Copyright (c) 2012 Chad Burggraf.
