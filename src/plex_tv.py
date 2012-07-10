@@ -73,7 +73,7 @@ class PlexTV(object):
 								else:
 									log.info("Link exists for %s", name)
 							else:	
-								logg.error("Invalid or incomplete MP4 container %s%s", filename, fileext)
+								log.error("Invalid or incomplete MP4 container %s%s", filename, fileext)
 						else:
 							log.error("Failed to open file %s%s", filename, fileext)
 			return True
