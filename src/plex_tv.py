@@ -23,21 +23,20 @@ __copyright__ = "Copyright 2012, Chad Burggraf"
 __license__ = "MIT"
 __status__ = "Prototype"
 
-config = ConfigParser.SafeConfigParser({'pid-file': '/tmp/plextvd.pid', 'extensions': '.m4v,.mp4'})
-config.read('plex_tv.cfg')
-
-log = logging.getLogger("tv")
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
 class PlexTV(object):
-	def __init__(self, source, destination, pattern=".*\.(m4v|mp4)$"):
+	def __init__(self, source, destination, pattern=".*\.(m4v|mp4)$", log=logging.getLogger("plex_tv")):
 		self._source = source
 		self._destination = destination
 		self._pattern = pattern
+		self._log = log
 
 	@property
 	def destination(self):
 		return self._destination
+
+	@property
+	def log(self):
+		return self._log
 
 	@property
 	def pattern(self):
@@ -52,7 +51,7 @@ class PlexTV(object):
 			for subpath in os.listdir(self.destination):
 				file = os.path.join(self.destination, subpath)
 				if os.path.islink(file) and not os.path.exists(os.readlink(file)):
-					log.info("Un-linking %s", subpath)
+					self.log.info("Un-linking %s", subpath)
 					os.unlink(file)
 			return True
 		return False
@@ -69,13 +68,13 @@ class PlexTV(object):
 							name = PlexTV.create_file_name(file, fileext)
 							if name:
 								if PlexTV.create_link(episode, os.path.join(self.destination, name)):
-									log.info("Link created for %s", name)
+									self.log.info("Link created for %s", name)
 								else:
-									log.info("Link exists for %s", name)
+									self.log.info("Link exists for %s", name)
 							else:	
-								log.error("Invalid or incomplete MP4 container %s%s", filename, fileext)
+								self.log.error("Invalid or incomplete MP4 container %s%s", filename, fileext)
 						else:
-							log.error("Failed to open file %s%s", filename, fileext)
+							self.log.error("Failed to open file %s%s", filename, fileext)
 			return True
 		return False
 						
@@ -132,6 +131,36 @@ class PlexTV(object):
 		return files
 
 	@staticmethod
+	def get_search_pattern_from_extensions(extensions):
+		pattern = '.*\.('
+		i = 0
+		for ext in extensions:
+			if i > 0:
+				pattern += '|'
+			pattern += ext.strip().replace('*', '').replace('.', '')
+			i += 1
+		return pattern + ')$'
+
+	@staticmethod
+	def log_all_metadata_atoms(path, pattern, log=logging.getLogger("plex_tv")):
+		files = []
+		if os.path.isdir(path):
+			files = PlexTV.get_files(path, pattern)
+		else:
+			files = [path]
+
+		for file in files:
+			mp4 = PlexTV.get_file(file)
+			if mp4:
+				log.info(file)
+				atoms = mp4.findall('.//data')
+				for atom in atoms:
+					data = atom.get_attribute('data')
+					log.info("   %s\t%s", atom.parent.name, data)
+			else:
+				log.error("Failed to open file %s", path)
+
+	@staticmethod
 	def remove_invalid_path_chars(name):
 		for c in '\/:*?"<>|':
 			name = name.replace(c, '')
@@ -143,11 +172,11 @@ class PlexTV(object):
 				if not os.path.samefile(self.source, dest):
 					return True
 				else:
-					log.error('Source and destionation paths must not point to the same location.')
+					self.log.error('Source and destionation paths must not point to the same location.')
 			else:
-				log.error('Both source and destination paths must be directories.')
+				self.log.error('Both source and destination paths must be directories.')
 		else:
-			log.error('Both source and destination directories must exist')
+			self.log.error('Both source and destination directories must exist')
 		return False
 
 class PlexTVDaemon(Daemon):
@@ -183,35 +212,51 @@ class PlexTVDaemon(Daemon):
 		super.stop()
 
 class PlexTVEventHandler(PatternMatchingEventHandler):
-	def __init__(self, tv, patterns=["*.m4v", "*.mp4"]):
+	def __init__(self, tv, patterns=["*.m4v", "*.mp4"], log=logging.getLogger("plex_tv")):
 		super(PlexTVEventHandler, self).__init__(patterns=patterns, ignore_patterns=None, ignore_directories=True, case_sensitive=False)
 		self._tv = tv
+		self._log = log
+
+	@property
+	def log(self):
+		return self._log
 
 	@property
 	def tv(self):
 		return self._tv
 
 	def on_any_event(self, event):
-		log.info('A %s event was detected at %s', event.event_type, event.src_path)
+		self.loglog.info('A %s event was detected at %s', event.event_type, event.src_path)
 		self.tv.clean_broken_links() and self.tv.create_all_links()
 
-def _get_search_pattern_from_extensions(extensions):
-	pattern = '.*\.('
-	i = 0
-	for ext in extensions:
-		if i > 0:
-			pattern += '|'
-		pattern += ext.strip().replace('*', '').replace('.', '')
-		i += 1
-	return pattern + ')$'
-
 if __name__ == '__main__':
-	source = os.path.abspath(os.path.expanduser(config.get('plextvd', 'source-dir')))
-	dest = os.path.abspath(os.path.expanduser(config.get('plextvd', 'dest-dir')))
-	pidfile = os.path.abspath(os.path.expanduser(config.get('plextvd', 'pid-file')))
-	extensions = config.get('plextvd', 'extensions').split(',')
+	logging.basicConfig(level=logging.INFO, format='%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+	log = logging.getLogger("plex_tv")
+
+	config = ConfigParser.SafeConfigParser({'pid-file': '/tmp/plextvd.pid', 'extensions': '.m4v,.mp4'})
+	config.read('plex_tv.cfg')
+
+	source = sys.argv[1].strip() if len(sys.argv) > 1 else ''
+	
+	if not source:
+		source = config.get('plextv', 'source-dir').strip()
+
+	dest = sys.argv[2].strip() if len(sys.argv) > 2 else ''
+
+	if not dest:
+		dest = config.get('plextv', 'dest-dir').strip()
+
+	pidfile = sys.argv[3].strip() if len(sys.argv) > 3 else ''
+
+	if not pidfile:
+		pidfile = config.get('plextv', 'pid-file').strip()
+
+	source = os.path.abspath(os.path.expanduser(source))
+	dest = os.path.abspath(os.path.expanduser(dest))
+	pidfile = os.path.abspath(os.path.expanduser(pidfile))
+	extensions = config.get('plextv', 'extensions').split(',')
 	patterns = ['*' + e.strip() for e in extensions]
-	search = _get_search_pattern_from_extensions(extensions)
+	search = PlexTV.get_search_pattern_from_extensions(extensions)
 
 	tv = PlexTV(source, dest, pattern=search)
 	tv.clean_broken_links() and tv.create_all_links()
