@@ -62,7 +62,13 @@ class PlexTV(object):
 				for season in PlexTV.get_dirs(show):
 					for episode in PlexTV.get_files(season, self.pattern):
 						filename, fileext = os.path.splitext(os.path.basename(episode))
-						file = PlexTV.get_file(episode)
+						file = None
+						err = None
+
+						try:
+							file = PlexTV.get_file(episode)
+						except Exception e:
+							err = e
 
 						if file:
 							name = PlexTV.create_file_name(file, fileext)
@@ -74,7 +80,7 @@ class PlexTV(object):
 							else:	
 								self.log.error("Invalid or incomplete MP4 container %s", episode)
 						else:
-							self.log.error("Failed to open file %s", episode)
+							self.log.error("Failed to open file %s%s", episode, (" " + str(err) if error else ""))
 			return True
 		return False
 						
