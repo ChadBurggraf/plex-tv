@@ -67,7 +67,7 @@ class PlexTV(object):
 
 						try:
 							file = PlexTV.get_file(episode)
-						except Exception e:
+						except Exception as e:
 							err = e
 
 						if file:
