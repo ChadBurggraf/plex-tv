@@ -86,6 +86,9 @@ class PlexTV(object):
 		title = PlexTV.find_item(atoms, 'title')
 		episode = PlexTV.find_item(atoms, 'tvepisode')
 
+		if not title:
+			title = PlexTV.find_item(atoms, 'tvepisodenum')
+
 		if show and season > 0 and title and episode > 0:
 			return "%s - S%02dE%02d - %s%s" % (PlexTV.remove_invalid_path_chars(show), season, episode, PlexTV.remove_invalid_path_chars(title), ext)
 		else:
