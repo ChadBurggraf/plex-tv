@@ -1,0 +1,3 @@
+[submodule "dep/mp4file"]
+	path = dep/mp4file
+	url = https://github.com/ChadBurggraf/mp4file.git
