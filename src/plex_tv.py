@@ -80,7 +80,7 @@ class PlexTV(object):
 							else:	
 								self.log.error("Invalid or incomplete MP4 container %s", episode)
 						else:
-							self.log.error("Failed to open file %s%s", episode, (" " + str(err) if error else ""))
+							self.log.error("Failed to open file %s%s", episode, (" " + str(err) if err else ""))
 			return True
 		return False
 						
